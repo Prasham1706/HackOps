@@ -1,11 +1,11 @@
 🌱 HackOps – Green Hydrogen Subsidy Management Platform
-HackOut’25 
-Team Name: HackOps
+HackOut’25 <br>
+Team Name: HackOps<br>
 Team Members:
-•	Prasham Doshi
-•	Prachi Mishra
-•	Darshil Mendapara
-•	Nidhi Pujara
+•	Prasham Doshi<br>
+•	Prachi Mishra<br>
+•	Darshil Mendapara<br>
+•	Nidhi Pujara<br>
 Submission Date: August 31, 2025
 ________________________________________
 🚀 Problem Statement
