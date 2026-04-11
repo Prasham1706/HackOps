@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "C:\MCP_Agent\flowmind-backend\MCP\Lib\site-packages\google\auth\transport\requests.py", line 26, in <module>
+    import requests
+ModuleNotFoundError: No module named 'requests'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\MCP_Agent\flowmind-backend\test.py", line 4, in <module>
+    import app.main
+  File "C:\MCP_Agent\flowmind-backend\app\main.py", line 11, in <module>
+    from app.routes import auth, workflow, genome, integrations, ws
+  File "C:\MCP_Agent\flowmind-backend\app\routes\auth.py", line 18, in <module>
+    from app.services.auth_service import (
+    ...<4 lines>...
+    )
+  File "C:\MCP_Agent\flowmind-backend\app\services\auth_service.py", line 12, in <module>
+    from google.auth.transport import requests as google_requests
+  File "C:\MCP_Agent\flowmind-backend\MCP\Lib\site-packages\google\auth\transport\requests.py", line 28, in <module>
+    raise ImportError(
+        "The requests library is not installed from please install the requests package to use the requests transport."
+    ) from caught_exc
+ImportError: The requests library is not installed from please install the requests package to use the requests transport.

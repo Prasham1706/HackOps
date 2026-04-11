@@ -1,0 +1,58 @@
+
+==========================================================
+  FLOWMIND RUNNING SERVICES LOG
+  Snapshot Time: 2026-04-11 12:35:47 IST
+==========================================================
+
+--- SERVICE STATUS ---
+  [BACKEND]      http://127.0.0.1:8000   ->  ✅ UP  (FastAPI/Uvicorn)    PID: 6684
+  [MCP SERVICE]  http://127.0.0.1:8001   ->  ❌ NOT RUNNING / No response
+  [FRONTEND]     http://localhost:5173    ->  ✅ UP  (Vite dev server)    PID: 13204
+
+--- LISTENING PORTS (netstat) ---
+  TCP    127.0.0.1:8000    0.0.0.0:0    LISTENING    PID 6684   (Python/uvicorn - FastAPI Backend)
+  TCP    [::1]:5173        [::]:0       LISTENING    PID 13204  (Node/Vite - React Frontend)
+
+--- PYTHON PROCESSES ---
+  PID    Name      CPU(s)   RAM(MB)   Started
+  -----  ------    ------   -------   -------------------
+  6684   python     3.8      15.0     2026-04-11 11:39:28  (uvicorn - FastAPI Backend on :8000)
+  18452  python     4.4      15.8     2026-04-11 11:38:55  (MCP service launcher - may be idle/exited)
+  3432   python     4.7     110.2     2026-04-11 12:31:58  (likely MCP adapter / Gemini worker)
+  16600  python     2.4      75.4     2026-04-11 12:32:00  (likely MCP adapter / Gemini worker)
+
+--- NODE PROCESSES ---
+  PID    Name   CPU(s)   RAM(MB)   Started
+  -----  ----   ------   -------   -------------------
+  13204  node    3.7     104.3     2026-04-11 12:13:30  (Vite dev server - React Frontend)
+  21080  node    0.3      49.5     2026-04-11 12:13:30  (Vite helper worker)
+
+--- BACKEND API ROUTES (from /openapi.json) ---
+  POST   /api/auth/register          Register user
+  POST   /api/auth/login             Login user
+  POST   /api/auth/google            Google OAuth login
+  POST   /api/workflow/generate      Generate workflow from NL description
+  POST   /api/workflow/simulate      Simulate workflow execution
+  POST   /api/workflow/execute       Execute workflow
+  POST   /api/workflow/approve       HITL approve workflow step
+  GET    /api/workflows              List workflows
+  GET    /api/workflows/{id}         Get workflow
+  DELETE /api/workflows/{id}         Delete workflow
+  GET    /api/genome/list            List genome library
+  GET    /api/genome/{id}            Get genome
+  POST   /api/genome/clone           Clone genome to new workflow
+  GET    /api/integrations/status    Get integration connection status
+  POST   /api/integrations/connect   Connect a service
+  DELETE /api/integrations/disconnect Disconnect a service
+  GET    /health                     Health check
+
+--- OBSERVATIONS ---
+  ⚠ MCP Service (port 8001) has no response - it may have crashed or not been started.
+     Check the mcp_service terminal for errors.
+  ✅ Backend FastAPI is healthy and serving all API routes.
+  ✅ Frontend Vite dev server is running at http://localhost:5173.
+  ℹ  4 Python processes detected — some are likely MCP adapter workers running in background.
+
+==========================================================
+  END OF LOG
+==========================================================
