@@ -3,6 +3,7 @@ from typing import Dict, List
 import networkx as nx
 
 from app.adapters.gemini.adapter import GeminiAdapter
+from app.core.config import settings
 from app.models.schemas import DAGEdge, DAGNode, DAGPayload, GenerateRequest, GenerateResponse
 
 SUPPORTED_ACTIONS = {
@@ -82,7 +83,13 @@ def _build_dag_from_plan(
     nodes: List[DAGNode] = []
     for index, service in enumerate(services, start=1):
         action, label = _pick_action_for_service(service, lowered, index == 1, index == len(services))
-        nodes.append(DAGNode(id=f"n{index}", service=service, action=action, label=label))
+        nodes.append(DAGNode(
+            id=f"n{index}",
+            service=service,
+            action=action,
+            label=label,
+            inputs=_default_inputs_for(service, action),
+        ))
 
     edges = [
         DAGEdge.model_validate({"from": nodes[i].id, "to": nodes[i + 1].id})
@@ -142,4 +149,25 @@ def _validate_dag(dag: DAGPayload) -> None:
         graph.add_edge(edge.from_node, edge.to_node)
     if not nx.is_directed_acyclic_graph(graph):
         raise ValueError("Generated workflow is not a DAG")
+
+
+def _default_inputs_for(service: str, action: str) -> Dict:
+    if service == "github":
+        if action in {"listen_issue", "create_issue", "comment"}:
+            return {"repo": settings.GITHUB_DEFAULT_REPO} if settings.GITHUB_DEFAULT_REPO else {}
+
+    if service == "gmail":
+        if action == "send":
+            defaults = {}
+            if settings.GMAIL_DEFAULT_TO:
+                defaults["to"] = settings.GMAIL_DEFAULT_TO
+            if settings.GMAIL_DEFAULT_SUBJECT:
+                defaults["subject"] = settings.GMAIL_DEFAULT_SUBJECT
+            return defaults
+
+    if service == "notion":
+        if action in {"create_task", "query"} and settings.NOTION_DEFAULT_DATABASE_ID:
+            return {"database_id": settings.NOTION_DEFAULT_DATABASE_ID}
+
+    return {}
 

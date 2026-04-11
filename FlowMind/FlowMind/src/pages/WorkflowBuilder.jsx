@@ -36,9 +36,10 @@ const WorkflowBuilder = () => {
     setIsGenerating(true);
     setSimulation(null); // Reset sim
     try {
+      const inferredServices = inferServicesFromPrompt(prompt, connectedServices);
       const data = await generateWorkflow({
         description: prompt,
-        services: connectedServices,
+        services: inferredServices,
       });
       setWorkflow(normalizeWorkflow(data));
     } catch (error) {
@@ -211,6 +212,22 @@ const getRiskBadges = (simulation) => {
     .map((step) => `${step.nodeId}: ${step.risk}${step.hitlRequired ? ' + HITL' : ''}`);
 
   return risks.length ? risks : ['No major risks detected'];
+};
+
+const inferServicesFromPrompt = (prompt, connectedServices) => {
+  const lowered = prompt.toLowerCase();
+  const serviceMatchers = {
+    github: ['github', 'repo', 'repository', 'issue', 'pull request'],
+    gmail: ['gmail', 'email', 'mail', 'inbox'],
+    notion: ['notion', 'database', 'page', 'task', 'doc'],
+    gemini: ['gemini', 'ai', 'summarize', 'summary', 'classify', 'generate'],
+  };
+
+  const matched = connectedServices.filter((service) =>
+    (serviceMatchers[service] || []).some((keyword) => lowered.includes(keyword))
+  );
+
+  return matched;
 };
 
 export default WorkflowBuilder;

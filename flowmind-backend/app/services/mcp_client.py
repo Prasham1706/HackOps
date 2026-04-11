@@ -186,9 +186,8 @@ async def generate_dag(description: str, services: List[str], user_id: str) -> D
             "userId": user_id,
         })
     except Exception as e:
-        logger.warning(f"MCP unreachable, falling back to mock: {e}")
-        dag = _mock_generate_dag(description, services)
-        return {"dag": dag}
+        logger.exception("MCP generate failed while MCP_DEV_MOCK=false")
+        raise
 
 
 async def simulate_workflow(workflow_id: str, dag: Dict) -> Dict:
@@ -200,8 +199,8 @@ async def simulate_workflow(workflow_id: str, dag: Dict) -> Dict:
     try:
         return await _call_mcp("/mcp/simulate", {"workflowId": workflow_id, "dag": dag})
     except Exception as e:
-        logger.warning(f"MCP unreachable, falling back to mock: {e}")
-        return _mock_simulate(dag)
+        logger.exception("MCP simulate failed while MCP_DEV_MOCK=false")
+        raise
 
 
 async def check_risk(completed_steps: List, next_group: List, workflow_id: str) -> Dict:
@@ -216,8 +215,8 @@ async def check_risk(completed_steps: List, next_group: List, workflow_id: str) 
             "workflow_id": workflow_id,
         })
     except Exception as e:
-        logger.warning(f"MCP risk-check unreachable, falling back to mock: {e}")
-        return _mock_risk_check(completed_steps, next_group)
+        logger.exception("MCP risk-check failed while MCP_DEV_MOCK=false")
+        raise
 
 
 async def execute_node(service: str, action: str, node_id: str, inputs: Dict = None) -> Dict:
@@ -232,5 +231,5 @@ async def execute_node(service: str, action: str, node_id: str, inputs: Dict = N
             "inputs": inputs or {},
         })
     except Exception as e:
-        logger.warning(f"MCP execute unreachable, falling back to mock: {e}")
-        return await _mock_execute_node(service, action, node_id)
+        logger.exception("MCP execute failed while MCP_DEV_MOCK=false")
+        raise

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: str = ""
     GITHUB_DEFAULT_REPO: str = ""
     GMAIL_ACCESS_TOKEN: str = ""
+    GMAIL_DEFAULT_TO: str = ""
+    GMAIL_DEFAULT_SUBJECT: str = "FlowMind Automation Result"
     GMAIL_CLIENT_ID: str = ""
     GMAIL_CLIENT_SECRET: str = ""
     NOTION_API_KEY: str = ""

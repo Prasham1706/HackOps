@@ -43,11 +43,14 @@ class GmailAdapter(ServiceAdapter):
         return f"Subject: {subject}\n\n{body}".strip()
 
     async def _send_email(self, inputs: Dict[str, Any], token: str) -> str:
-        to = str(inputs.get("to", "")).strip()
-        subject = str(inputs.get("subject", "")).strip()
-        body = str(inputs.get("body", "")).strip()
+        to = str(inputs.get("to") or settings.GMAIL_DEFAULT_TO or "").strip()
+        subject = str(inputs.get("subject") or settings.GMAIL_DEFAULT_SUBJECT or "").strip()
+        body = str(inputs.get("body") or inputs.get("text") or inputs.get("content") or "").strip()
         if not to or not subject or not body:
-            raise AdapterExecutionError("Gmail send requires inputs.to, inputs.subject, and inputs.body", 400)
+            raise AdapterExecutionError(
+                "Gmail send requires a recipient plus message body. Set inputs.to or GMAIL_DEFAULT_TO.",
+                400,
+            )
 
         message = EmailMessage()
         message["To"] = to
