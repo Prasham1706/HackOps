@@ -58,7 +58,17 @@ async def _call_mcp(endpoint: str, payload: Dict) -> Dict:
     url = f"{settings.MCP_LAYER_URL}{endpoint}"
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload)
-        response.raise_for_status()
+        
+        if response.status_code >= 400:
+            try:
+                # Try to extract the friendly 'detail' message from FastAPI response
+                error_json = response.json()
+                error_detail = error_json.get("detail", f"Error {response.status_code}")
+                raise Exception(error_detail)
+            except (ValueError, KeyError, TypeError):
+                # Fallback to standard status error if JSON parsing fails
+                response.raise_for_status()
+                
         return response.json()
 
 

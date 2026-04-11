@@ -2,6 +2,7 @@
 ws.py — WebSocket endpoint for real-time execution events.
 Frontend connects to: ws://localhost:8000/ws/workflow/{workflow_id}
 """
+import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.utils.ws_manager import manager
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 async def workflow_websocket(workflow_id: str, websocket: WebSocket):
     """
     WebSocket endpoint.
-    
+
     The frontend connects here after calling POST /api/workflow/execute.
     Events emitted by the backend (via ws_manager.emit()):
       - step_started      → node turns pulsing blue
@@ -33,9 +34,17 @@ async def workflow_websocket(workflow_id: str, websocket: WebSocket):
         # Keep the connection alive — execution events are PUSHED from the backend
         # Frontend can also send messages (e.g., HITL approval confirmations)
         while True:
-            data = await websocket.receive_text()
-            logger.debug(f"WS received from client [{workflow_id}]: {data}")
-            # Future: handle frontend → backend WS messages here
+            try:
+                data = await websocket.receive_text()
+                logger.debug(f"WS received from client [{workflow_id}]: {data}")
+                # Future: handle frontend → backend WS messages here
+            except asyncio.CancelledError:
+                # Task was cancelled (e.g. server shutdown) — exit cleanly
+                break
     except WebSocketDisconnect:
-        manager.disconnect(workflow_id, websocket)
         logger.info(f"WebSocket disconnected for workflow: {workflow_id}")
+    except Exception as e:
+        logger.warning(f"WebSocket error for workflow {workflow_id}: {e}")
+    finally:
+        manager.disconnect(workflow_id, websocket)
+        logger.info(f"WebSocket cleaned up for workflow: {workflow_id}")

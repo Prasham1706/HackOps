@@ -119,7 +119,7 @@
 
 .real-time-flow .node-gmail { border-left-color: var(--danger); }
 .real-time-flow .node-notion { border-left-color: var(--text-primary); }
-.real-time-flow .node-drive { border-left-color: var(--accent); }
+.real-time-flow .node-github { border-left-color: #24292e; }
 
 /* Animation states for Nodes */
 @keyframes pulseBlue {
@@ -146,4 +146,120 @@
 .live-warning {
   border-color: var(--warn) !important;
   background-color: #fffbeb !important;
+}
+.log-entry.has-output {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.log-entry.has-output:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.log-entry.selected {
+  background: rgba(255,255,255,0.1) !important;
+}
+
+.view-link {
+  font-size: 11px;
+  color: var(--accent);
+  opacity: 0.6;
+  margin-left: auto;
+  text-decoration: underline;
+}
+
+.log-entry:hover .view-link {
+  opacity: 1;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 40px;
+}
+
+.result-modal {
+  width: 100%;
+  max-width: 800px;
+  max-height: 80vh;
+  background: #0f172a;
+  border: 1px solid #334155;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #f8fafc;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-close:hover {
+  color: #f8fafc;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.detail-meta {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.meta-item {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-content-large {
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #334155;
+  display: flex;
+  justify-content: flex-end;
 }

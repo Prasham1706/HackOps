@@ -9,6 +9,7 @@ class DAGNode(BaseModel):
     service: str
     action: str
     label: str
+    inputs: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DAGEdge(BaseModel):

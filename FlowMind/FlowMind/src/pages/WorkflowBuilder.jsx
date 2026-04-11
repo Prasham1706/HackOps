@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ReactFlow, { Background, Controls, MiniMap } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Sparkles, Play, ShieldAlert, Cpu } from 'lucide-react';
-import { executeWorkflow, generateWorkflow, getIntegrations, simulateWorkflow } from '../api';
+import { configureWorkflow, executeWorkflow, generateWorkflow, getIntegrations, simulateWorkflow } from '../api';
 import './WorkflowBuilder.css';
 
 const WorkflowBuilder = () => {
@@ -14,6 +14,8 @@ const WorkflowBuilder = () => {
   const [simulation, setSimulation] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [connectedServices, setConnectedServices] = useState([]);
+  const [nodeInputs, setNodeInputs] = useState({});
+  const [isPreparingExecution, setIsPreparingExecution] = useState(false);
 
   useEffect(() => {
     const loadIntegrations = async () => {
@@ -41,7 +43,9 @@ const WorkflowBuilder = () => {
         description: prompt,
         services: inferredServices,
       });
-      setWorkflow(normalizeWorkflow(data));
+      const normalized = normalizeWorkflow(data);
+      setWorkflow(normalized);
+      setNodeInputs(extractEditableInputs(normalized.dag));
     } catch (error) {
       console.error('Failed to generate workflow', error);
     } finally {
@@ -65,11 +69,30 @@ const WorkflowBuilder = () => {
   const handleExecute = async () => {
     if (!workflow) return;
     try {
+      if (hasMissingRequiredInputs(workflow.dag, nodeInputs)) {
+        alert('Please fill in the required workflow inputs before executing.');
+        return;
+      }
+
+      setIsPreparingExecution(true);
+      await configureWorkflow(workflow.id, nodeInputs);
       const exec = await executeWorkflow(workflow.id);
       navigate('/execution', { state: { execId: exec.executionId, workflow } });
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsPreparingExecution(false);
     }
+  };
+
+  const handleInputChange = (nodeId, fieldName, value) => {
+    setNodeInputs((prev) => ({
+      ...prev,
+      [nodeId]: {
+        ...(prev[nodeId] || {}),
+        [fieldName]: value,
+      },
+    }));
   };
 
   return (
@@ -80,8 +103,8 @@ const WorkflowBuilder = () => {
           <p className="page-subtitle">Translate intent into automated execution</p>
         </div>
         {workflow && (
-            <button className="btn btn-primary" onClick={handleExecute}>
-              <Play size={16} /> Execute Workflow
+            <button className="btn btn-primary" onClick={handleExecute} disabled={isPreparingExecution}>
+              <Play size={16} /> {isPreparingExecution ? 'Preparing...' : 'Execute Workflow'}
             </button>
         )}
       </div>
@@ -101,6 +124,32 @@ const WorkflowBuilder = () => {
               {isGenerating ? 'Generating...' : <><Sparkles size={16} /> Generate Workflow</>}
             </button>
           </div>
+
+          {workflow && hasEditableInputs(workflow.dag) && (
+            <div className="card input-card">
+              <h3>Workflow Inputs</h3>
+              {(workflow.dag?.nodes || []).map((node) => {
+                const editableFields = getEditableFields(node);
+                if (!editableFields.length) return null;
+
+                return (
+                  <div key={node.id} className="workflow-input-group">
+                    <p className="meta-label">{node.label}</p>
+                    {editableFields.map((field) => (
+                      <input
+                        key={`${node.id}-${field.name}`}
+                        className="input"
+                        type={field.type || 'text'}
+                        placeholder={field.placeholder}
+                        value={nodeInputs[node.id]?.[field.name] || ''}
+                        onChange={(e) => handleInputChange(node.id, field.name, e.target.value)}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Section C: Simulation Panel */}
           {workflow && (
@@ -185,6 +234,7 @@ const normalizeWorkflow = (response) => {
         label: node.label,
         service: node.service,
         action: node.action,
+        inputs: node.inputs || {},
       },
       sourcePosition: 'right',
       targetPosition: 'left',
@@ -204,6 +254,122 @@ const normalizeWorkflow = (response) => {
       animated: true,
     })),
   };
+};
+
+const extractEditableInputs = (dag) => {
+  return (dag?.nodes || []).reduce((acc, node) => {
+    const editableFields = getEditableFields(node, dag);
+    if (!editableFields.length) return acc;
+
+    acc[node.id] = editableFields.reduce((fieldAcc, field) => {
+      fieldAcc[field.name] = node.inputs?.[field.name] || '';
+      return fieldAcc;
+    }, {});
+    return acc;
+  }, {});
+};
+
+const getEditableFields = (node, dag) => {
+  if (node.service === 'github' && node.action === 'listen_issue') {
+    return [
+      {
+        name: 'repo',
+        placeholder: 'GitHub repo (owner/repo)',
+      },
+    ];
+  }
+
+  if (node.service === 'github' && node.action === 'create_issue') {
+    return [
+      {
+        name: 'repo',
+        placeholder: 'GitHub repo (owner/repo)',
+      },
+      {
+        name: 'title',
+        placeholder: 'Issue title',
+      },
+      {
+        name: 'body',
+        placeholder: 'Issue body',
+      },
+    ];
+  }
+
+  if (node.service === 'github' && node.action === 'comment') {
+    return [
+      {
+        name: 'repo',
+        placeholder: 'GitHub repo (owner/repo)',
+      },
+      {
+        name: 'issue_number',
+        placeholder: 'Issue number',
+        type: 'number',
+      },
+      {
+        name: 'body',
+        placeholder: 'Comment body',
+      },
+    ];
+  }
+
+  if (node.service === 'gmail' && node.action === 'send') {
+    return [
+      {
+        name: 'to',
+        placeholder: 'Receiver email address',
+        type: 'email',
+      },
+      {
+        name: 'subject',
+        placeholder: 'Email subject',
+      },
+    ];
+  }
+
+  const hasUpstreamInput = hasIncomingEdge(node.id, dag);
+
+  if (node.service === 'gemini' && node.action === 'summarize' && !hasUpstreamInput) {
+    return [
+      {
+        name: 'text',
+        placeholder: 'Text to summarize',
+      },
+    ];
+  }
+
+  if (node.service === 'gemini' && node.action === 'generate' && !hasUpstreamInput) {
+    return [
+      {
+        name: 'prompt',
+        placeholder: 'Prompt to generate from',
+      },
+    ];
+  }
+
+  if (node.service === 'gemini' && node.action === 'classify' && !hasUpstreamInput) {
+    return [
+      {
+        name: 'text',
+        placeholder: 'Text to classify',
+      },
+    ];
+  }
+
+  return [];
+};
+
+const hasEditableInputs = (dag) => (dag?.nodes || []).some((node) => getEditableFields(node, dag).length > 0);
+
+const hasMissingRequiredInputs = (dag, nodeInputs) => {
+  return (dag?.nodes || []).some((node) =>
+    getEditableFields(node, dag).some((field) => !String(nodeInputs[node.id]?.[field.name] || '').trim())
+  );
+};
+
+const hasIncomingEdge = (nodeId, dag) => {
+  return (dag?.edges || []).some((edge) => edge.to === nodeId);
 };
 
 const getRiskBadges = (simulation) => {

@@ -37,12 +37,32 @@ class GitHubAdapter(ServiceAdapter):
             "direction": "desc",
             "per_page": 10,
         })
+        # Note: GitHub API returns PRs in the issue endpoint too
         issue = next((item for item in issues if "pull_request" not in item), None)
+        
         if not issue:
-            raise AdapterExecutionError(f"No open issues found in repository '{repo}'", 404)
+            # Fallback to commits if no open issues are found
+            return await self._listen_commits(repo, token)
+            
         title = issue.get("title", "").strip()
         body = issue.get("body", "").strip()
-        return f"Issue #{issue['number']}: {title}\n\n{body}".strip()
+        return f"Latest Issue #{issue['number']}: {title}\n\n{body}".strip()
+
+    async def _listen_commits(self, repo: str, token: str) -> str:
+        commits = await self._request("GET", f"/repos/{repo}/commits", token, params={
+            "per_page": 5,
+        })
+        if not commits:
+            raise AdapterExecutionError(f"No repository activity (issues or commits) found for '{repo}'", 404)
+        
+        latest = commits[0]
+        author = latest.get("commit", {}).get("author", {}).get("name", "Unknown")
+        # Extract date from '2026-04-11T12:34:56Z' -> '2026-04-11'
+        date_raw = latest.get("commit", {}).get("author", {}).get("date", "Unknown Date")
+        date = date_raw.split("T")[0] if "T" in date_raw else date_raw
+        message = latest.get("commit", {}).get("message", "").strip()
+        
+        return f"Latest Repository Update (Commit):\nAuthor: {author}\nDate: {date}\n\nMessage: {message}".strip()
 
     async def _create_issue(self, repo: str, inputs: Dict[str, Any], token: str) -> str:
         title = str(inputs.get("title", "")).strip()

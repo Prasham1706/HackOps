@@ -5,7 +5,7 @@ Flow:
   1. For each topological level (parallel group):
      a. Runtime risk check via MCP (or mock)
      b. Emit risk_updated and parallel_cleared events
-     c. Fire all non-blocked nodes simultaneously via asyncio.gather
+     b. Fire all non-blocked nodes simultaneously via asyncio.gather
   2. Each node calls MCP execute endpoint
   3. Self-healing: retry up to 2 times with backoff on failure
   4. After all nodes complete: save execution log, create genome
@@ -111,6 +111,8 @@ async def run_execution(
         for r in results:
             if isinstance(r, Exception) or r is False:
                 all_success = False
+        if not all_success:
+            break
 
     # ── Finalize execution ──────────────────────────────────────────
     final_status = ExecutionStatus.DONE if all_success else ExecutionStatus.FAILED
@@ -126,14 +128,23 @@ async def run_execution(
         genome = await create_genome(workflow, execution)
         genome_id = str(genome.id)
 
-    await ws_manager.emit(workflow_id, {
-        "type": "workflow_complete",
-        "executionId": execution_id,
-        "totalDuration": sum(
-            s.get("duration", 0) for s in completed_steps
-        ),
-        "genomeId": genome_id,
-    })
+    if all_success:
+        await ws_manager.emit(workflow_id, {
+            "type": "workflow_complete",
+            "executionId": execution_id,
+            "totalDuration": sum(
+                s.get("duration", 0) for s in completed_steps
+            ),
+            "genomeId": genome_id,
+        })
+    else:
+        await ws_manager.emit(workflow_id, {
+            "type": "workflow_failed",
+            "executionId": execution_id,
+            "totalDuration": sum(
+                s.get("duration", 0) for s in completed_steps
+            ),
+        })
 
 
 async def _execute_node(
@@ -193,6 +204,7 @@ async def _execute_node(
             await execution.update({"$push": {"log_json": {
                 "nodeId": node_id,
                 "status": "success",
+                "output": result.get("output"),
                 "duration": duration,
                 "timestamp": datetime.utcnow().isoformat(),
             }}})

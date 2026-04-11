@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.workflow import Execution, ExecutionStatus, Workflow, WorkflowStatus
 from app.schemas.workflow import (
     ApproveRequest,
+    ConfigureWorkflowRequest,
     ExecuteRequest,
     ExecuteResponse,
     GenerateWorkflowRequest,
@@ -66,6 +67,31 @@ async def simulate_workflow(
 
     await workflow.set({"simulation": simulation, "updated_at": datetime.utcnow()})
     return simulation
+
+
+@router.post("/workflow/configure")
+async def configure_workflow(
+    body: ConfigureWorkflowRequest,
+    current_user: User = Depends(get_current_user),
+):
+    workflow = await Workflow.get(body.workflowId)
+    if not workflow or workflow.user_id != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    dag = workflow.dag_json or {}
+    nodes = dag.get("nodes", [])
+    inputs_by_node = body.nodeInputs or {}
+
+    for node in nodes:
+        node_id = node.get("id")
+        if node_id in inputs_by_node:
+            existing_inputs = dict(node.get("inputs") or {})
+            existing_inputs.update(inputs_by_node[node_id])
+            node["inputs"] = existing_inputs
+
+    dag["nodes"] = nodes
+    await workflow.set({"dag_json": dag, "updated_at": datetime.utcnow()})
+    return {"success": True, "workflowId": body.workflowId, "dag": dag}
 
 
 # ─── Approve (HITL) ──────────────────────────────────────────────

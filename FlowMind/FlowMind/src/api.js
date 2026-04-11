@@ -59,6 +59,11 @@ export const simulateWorkflow = async (workflowId) => {
   return data;
 };
 
+export const configureWorkflow = async (workflowId, nodeInputs) => {
+  const { data } = await api.post('/api/workflow/configure', { workflowId, nodeInputs });
+  return data;
+};
+
 export const approveWorkflow = async (workflowId, decisions) => {
   const { data } = await api.post('/api/workflow/approve', { workflowId, decisions });
   return data;

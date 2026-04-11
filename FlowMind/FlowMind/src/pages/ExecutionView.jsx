@@ -10,6 +10,7 @@ const ExecutionView = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { execId, workflow } = location.state || {};
+  const [selectedLog, setSelectedLog] = React.useState(null);
 
   const { logs, nodeStates, status, approvalState } = useWebSocket(workflow?.id);
 
@@ -92,7 +93,11 @@ const ExecutionView = () => {
             <h3 className="console-title">Execution Logs</h3>
             <div className="console-logs">
               {logs.map((log) => (
-                <div key={log.id} className={`log-entry ${log.type}`}>
+                <div 
+                  key={log.id} 
+                  className={`log-entry ${log.type} ${selectedLog?.id === log.id ? 'selected' : ''} ${log.output ? 'has-output' : ''}`}
+                  onClick={() => log.output && setSelectedLog(selectedLog?.id === log.id ? null : log)}
+                >
                   <span className="log-time">[{log.timestamp}]</span>
                   <div className="log-content">
                     {log.type === 'step_success' && <CheckCircle size={14} className="text-success" />}
@@ -100,6 +105,7 @@ const ExecutionView = () => {
                     {log.type === 'self_healing' && <span className="badge badge-warn sm-badge">Fixing...</span>}
                     <span className="log-msg">{log.message}</span>
                   </div>
+                  {log.output && <span className="view-link">View Full Output</span>}
                 </div>
               ))}
               <div className="scroll-anchor"></div>
@@ -107,6 +113,32 @@ const ExecutionView = () => {
           </div>
         </div>
       </div>
+
+      {/* Result Modal */}
+      {selectedLog && (
+        <div className="modal-overlay" onClick={() => setSelectedLog(null)}>
+          <div className="modal-content result-modal fade-in-up" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Execution Result: {selectedLog.nodeId}</h3>
+              <button className="btn-close" onClick={() => setSelectedLog(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="detail-meta">
+                <span className="meta-item">Timestamp: {selectedLog.timestamp}</span>
+                <span className="meta-item">Status: Success</span>
+              </div>
+              <pre className="detail-content-large">
+                {typeof selectedLog.output === 'object' 
+                  ? JSON.stringify(selectedLog.output, null, 2) 
+                  : String(selectedLog.output)}
+              </pre>
+            </div>
+            <div className="modal-footer">
+               <button className="btn btn-secondary" onClick={() => setSelectedLog(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

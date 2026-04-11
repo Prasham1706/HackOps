@@ -30,6 +30,11 @@ class GenerateWorkflowResponse(BaseModel):
     dag: Dict[str, Any]
 
 
+class ConfigureWorkflowRequest(BaseModel):
+    workflowId: str
+    nodeInputs: Dict[str, Dict[str, Any]]
+
+
 # ── Simulate ──────────────────────────────────────────────────
 class SimulateRequest(BaseModel):
     workflowId: str

@@ -128,7 +128,7 @@
 
 .custom-node-styles .node-gmail { border-left-color: var(--danger); }
 .custom-node-styles .node-notion { border-left-color: var(--text-primary); }
-.custom-node-styles .node-drive { border-left-color: var(--accent); }
+.custom-node-styles .node-github { border-left-color: #24292e; }
 
 .custom-node-styles .react-flow__handle {
   width: 8px;
