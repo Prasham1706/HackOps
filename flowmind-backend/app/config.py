@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     MCP_DEV_MOCK: bool = True
     FRONTEND_URL: str = "http://localhost:5173"
     GMAIL_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/integrations/gmail/callback"
+    GITHUB_TOKEN: str = ""
+    NOTION_API_KEY: str = ""
 
     class Config:
         env_file = ".env"

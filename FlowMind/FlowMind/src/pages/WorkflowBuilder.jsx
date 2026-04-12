@@ -6,6 +6,19 @@ import { Sparkles, Play, ShieldAlert, Cpu, Mic, Loader2, CheckCircle2 } from 'lu
 import { configureWorkflow, executeWorkflow, generateWorkflow, getIntegrations, refineWorkflow, simulateWorkflow } from '../api';
 import './WorkflowBuilder.css';
 
+const PROMPT_TEMPLATES = [
+  {
+    id: 'github-gemini-notion',
+    title: 'GitHub to Notion',
+    description: 'Read the latest open GitHub issue, summarize it with Gemini, and create a Notion task',
+  },
+  {
+    id: 'gmail-github-gemini-notion',
+    title: 'Cross-service Summary',
+    description: 'Read the latest unread Gmail email, read the latest open GitHub issue, summarize both with Gemini, and create a Notion task with the combined summary.',
+  },
+];
+
 const WorkflowBuilder = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -234,6 +247,11 @@ const WorkflowBuilder = () => {
     }));
   };
 
+  const applyPromptTemplate = (templateText) => {
+    setPrompt(templateText);
+    setGenerateError('');
+  };
+
   return (
     <div className="builder-page fade-in-up">
       <div className="page-header">
@@ -281,6 +299,25 @@ const WorkflowBuilder = () => {
             <button className="btn btn-secondary w-100" onClick={() => handleGenerate()} disabled={isGenerating || !prompt.trim()}>
               {isGenerating ? 'Generating...' : <><Sparkles size={16} /> Generate Workflow</>}
             </button>
+            <div className="prompt-templates">
+              <div className="prompt-template-header">
+                <p className="meta-label">Prompt Templates</p>
+                <span className="prompt-template-caption">Tap one to fill the prompt box</span>
+              </div>
+              <div className="prompt-template-list">
+                {PROMPT_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className="prompt-template-card"
+                    onClick={() => applyPromptTemplate(template.description)}
+                  >
+                    <span className="prompt-template-title">{template.title}</span>
+                    <span className="prompt-template-text">{template.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {workflow && (

@@ -9,10 +9,12 @@ const Integrations = () => {
   const [integrations, setIntegrations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeService, setActiveService] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const loadIntegrations = async () => {
     const data = await getIntegrations();
     setIntegrations(data);
+    setErrorMessage('');
     setIsLoading(false);
   };
 
@@ -37,6 +39,7 @@ const Integrations = () => {
   const toggleConnection = async (integration) => {
     try {
       setActiveService(integration.id);
+      setErrorMessage('');
       if (integration.status === 'connected') {
         await disconnectIntegration(integration.id);
         await loadIntegrations();
@@ -52,6 +55,10 @@ const Integrations = () => {
       await loadIntegrations();
     } catch (error) {
       console.error('Failed to toggle integration', error);
+      setErrorMessage(
+        error?.response?.data?.detail ||
+          `Unable to connect ${integration.name}. Please check the backend OAuth configuration and try again.`
+      );
     } finally {
       setActiveService(null);
     }
@@ -65,6 +72,8 @@ const Integrations = () => {
           <p className="page-subtitle">Connect your apps to FlowMind Gateway</p>
         </div>
       </div>
+
+      {errorMessage ? <div className="integration-error-banner">{errorMessage}</div> : null}
 
       {isLoading ? (
         <div className="loading-state">Loading integrations...</div>

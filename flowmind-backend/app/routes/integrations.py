@@ -15,7 +15,7 @@ from app.models.user import User
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
-SUPPORTED_SERVICES = ["gmail", "github", "notion", "drive"]
+SUPPORTED_SERVICES = ["gmail", "github", "notion"]
 
 
 class ConnectRequest(BaseModel):
@@ -72,7 +72,6 @@ async def get_status(current_user: User = Depends(get_current_user)):
         "gmail": "Gmail",
         "github": "GitHub",
         "notion": "Notion Workspace",
-        "drive": "Google Drive",
     }
     return [
         {
@@ -121,31 +120,31 @@ async def connect_service(
         return {"success": True, "service": body.service, "authUrl": auth_url}
 
     if body.service == "github":
-        if not settings.GITHUB_OAUTH_CLIENT_ID or not settings.GITHUB_OAUTH_CLIENT_SECRET:
-            raise HTTPException(status_code=503, detail="GitHub OAuth client is not configured")
+        if settings.GITHUB_OAUTH_CLIENT_ID and settings.GITHUB_OAUTH_CLIENT_SECRET:
+            params = {
+                "client_id": settings.GITHUB_OAUTH_CLIENT_ID,
+                "redirect_uri": settings.GITHUB_OAUTH_REDIRECT_URI,
+                "scope": "public_repo read:user user:email",
+                "state": state,
+            }
+            auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+            return {"success": True, "service": body.service, "authUrl": auth_url}
 
-        params = {
-            "client_id": settings.GITHUB_OAUTH_CLIENT_ID,
-            "redirect_uri": settings.GITHUB_OAUTH_REDIRECT_URI,
-            "scope": "public_repo read:user user:email",
-            "state": state,
-        }
-        auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
-        return {"success": True, "service": body.service, "authUrl": auth_url}
+        raise HTTPException(status_code=503, detail="GitHub OAuth client is not configured")
 
     if body.service == "notion":
-        if not settings.NOTION_OAUTH_CLIENT_ID or not settings.NOTION_OAUTH_CLIENT_SECRET:
-            raise HTTPException(status_code=503, detail="Notion OAuth client is not configured")
+        if settings.NOTION_OAUTH_CLIENT_ID and settings.NOTION_OAUTH_CLIENT_SECRET:
+            params = {
+                "client_id": settings.NOTION_OAUTH_CLIENT_ID,
+                "response_type": "code",
+                "owner": "user",
+                "redirect_uri": settings.NOTION_OAUTH_REDIRECT_URI,
+                "state": state,
+            }
+            auth_url = f"https://api.notion.com/v1/oauth/authorize?{urlencode(params)}"
+            return {"success": True, "service": body.service, "authUrl": auth_url}
 
-        params = {
-            "client_id": settings.NOTION_OAUTH_CLIENT_ID,
-            "response_type": "code",
-            "owner": "user",
-            "redirect_uri": settings.NOTION_OAUTH_REDIRECT_URI,
-            "state": state,
-        }
-        auth_url = f"https://api.notion.com/v1/oauth/authorize?{urlencode(params)}"
-        return {"success": True, "service": body.service, "authUrl": auth_url}
+        raise HTTPException(status_code=503, detail="Notion OAuth client is not configured")
 
     integration = await Integration.find_one(
         Integration.user_id == user_id,

@@ -1,17 +1,18 @@
 .navbar {
-  height: 64px;
-  background-color: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  height: 84px;
   position: sticky;
   top: 0;
   z-index: 100;
+  background: rgba(249, 244, 234, 0.78);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(118, 137, 171, 0.14);
 }
 
 .navbar-container {
-  max-width: 1200px;
+  width: min(100%, 1440px);
   margin: 0 auto;
   height: 100%;
-  padding: 0 24px;
+  padding: 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,41 +21,98 @@
 .navbar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   text-decoration: none;
   color: var(--text-primary);
 }
 
 .brand-icon {
   color: var(--accent);
+  padding: 10px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.12), rgba(29, 78, 216, 0.03));
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
 }
 
 .brand-text {
-  font-size: 20px;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
   font-weight: 700;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.05em;
+}
+
+.brand-tag {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .navbar-links {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
 }
 
 .nav-link {
   text-decoration: none;
   color: var(--text-secondary);
-  font-weight: 500;
-  transition: color 0.2s ease;
+  font-weight: 700;
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
 .nav-link:hover {
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
-.user-profile img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
+.user-shell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workspace-pill {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(118, 137, 171, 0.18);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.user-profile {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent) 0%, #5f8cff 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 24px rgba(29, 78, 216, 0.24);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    height: 76px;
+  }
+
+  .navbar-container {
+    padding: 0 18px;
+  }
+
+  .brand-tag,
+  .workspace-pill {
+    display: none;
+  }
+
+  .brand-text {
+    font-size: 1.45rem;
+  }
 }
