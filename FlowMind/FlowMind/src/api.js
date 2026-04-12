@@ -54,6 +54,11 @@ export const generateWorkflow = async (payload) => {
   return data;
 };
 
+export const refineWorkflow = async (workflowId, refinementPrompt) => {
+  const { data } = await api.post('/api/workflow/refine', { workflowId, refinementPrompt });
+  return data;
+};
+
 export const simulateWorkflow = async (workflowId) => {
   const { data } = await api.post('/api/workflow/simulate', { workflowId });
   return data;

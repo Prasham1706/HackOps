@@ -24,7 +24,7 @@ class NotionAdapter(ServiceAdapter):
             return await self._create_task(inputs, token)
         if action == "update_task":
             return await self._update_task(inputs, token)
-        if action == "query":
+        if action in {"query", "listen_database"}:
             return await self._query_database(inputs, token)
         raise AdapterExecutionError(f"Unsupported Notion action '{action}'", 400)
 
@@ -43,7 +43,7 @@ class NotionAdapter(ServiceAdapter):
             "parent": {"database_id": database_id},
             "properties": {
                 title_property: {
-                    "title": [{"text": {"content": title}}]
+                    "title": [{"text": {"content": title}}],
                 }
             },
         }
@@ -53,10 +53,11 @@ class NotionAdapter(ServiceAdapter):
                     "object": "block",
                     "type": "paragraph",
                     "paragraph": {
-                        "rich_text": [{"type": "text", "text": {"content": content}}]
+                        "rich_text": [{"type": "text", "text": {"content": content}}],
                     },
                 }
             ]
+
         page = await self._request("POST", "/pages", token, json=payload)
         return f"Created Notion page {page['id']}"
 
@@ -65,6 +66,7 @@ class NotionAdapter(ServiceAdapter):
         properties = inputs.get("properties")
         if not page_id or not isinstance(properties, dict):
             raise AdapterExecutionError("Notion update_task requires inputs.page_id and inputs.properties", 400)
+
         page = await self._request("PATCH", f"/pages/{page_id}", token, json={"properties": properties})
         return f"Updated Notion page {page['id']}"
 
@@ -72,11 +74,13 @@ class NotionAdapter(ServiceAdapter):
         database_id = str(inputs.get("database_id") or settings.NOTION_DEFAULT_DATABASE_ID or "").strip()
         if not database_id:
             raise AdapterExecutionError("Notion query requires inputs.database_id or NOTION_DEFAULT_DATABASE_ID", 400)
-        payload = {}
+
+        payload: Dict[str, Any] = {}
         if isinstance(inputs.get("filter"), dict):
             payload["filter"] = inputs["filter"]
         if isinstance(inputs.get("sorts"), list):
             payload["sorts"] = inputs["sorts"]
+
         result = await self._request("POST", f"/databases/{database_id}/query", token, json=payload)
         return json.dumps(result)
 
@@ -86,16 +90,42 @@ class NotionAdapter(ServiceAdapter):
             "Notion-Version": settings.NOTION_VERSION,
             "Content-Type": "application/json",
         }
+
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=settings.MCP_REQUEST_TIMEOUT) as client:
-                response = await client.request(method, path, headers=headers, **kwargs)
-                response.raise_for_status()
-                return response.json()
+            return await self._send_request(method, path, headers=headers, trust_env=False, **kwargs)
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text or str(exc)
             raise AdapterExecutionError(f"Notion API error: {detail}", exc.response.status_code) from exc
-        except httpx.HTTPError as exc:
-            raise AdapterExecutionError(f"Notion API request failed: {exc}", 502) from exc
+        except (httpx.HTTPError, httpx.ConnectError):
+            try:
+                return await self._send_request(method, path, headers=headers, trust_env=True, **kwargs)
+            except httpx.HTTPStatusError as retry_exc:
+                detail = retry_exc.response.text or str(retry_exc)
+                raise AdapterExecutionError(f"Notion API error: {detail}", retry_exc.response.status_code) from retry_exc
+            except (httpx.HTTPError, httpx.ConnectError) as retry_exc:
+                raise AdapterExecutionError(
+                    "Notion connection failed (DNS/Network). This is likely a local DNS issue. "
+                    "Try restarting your router or switching to Google DNS (8.8.8.8): "
+                    f"{retry_exc}",
+                    502,
+                ) from retry_exc
+
+    async def _send_request(
+        self,
+        method: str,
+        path: str,
+        headers: Dict[str, str],
+        trust_env: bool,
+        **kwargs: Any,
+    ) -> Any:
+        async with httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=settings.MCP_REQUEST_TIMEOUT,
+            trust_env=trust_env,
+        ) as client:
+            response = await client.request(method, path, headers=headers, **kwargs)
+            response.raise_for_status()
+            return response.json()
 
     @staticmethod
     def _resolve_token(user_tokens: Optional[Dict[str, Dict[str, Any]]]) -> str:

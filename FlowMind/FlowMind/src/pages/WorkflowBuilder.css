@@ -25,6 +25,102 @@
   margin: 16px 0;
 }
 
+.refine-area {
+  min-height: 90px;
+  resize: vertical;
+  margin: 16px 0;
+}
+
+.prompt-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prompt-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.prompt-mic-btn.listening {
+  background: #fee2e2;
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+.speech-inline-status {
+  margin: -4px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.speech-inline-preview {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.speech-inline-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.generate-error-banner {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fee2e2;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.plan-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.plan-text-block {
+  margin: 16px 0 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: var(--font);
+}
+
+.plan-hint {
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.spin-icon {
+  animation: builder-spin 1s linear infinite;
+}
+
+@keyframes builder-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .dag-card {
   flex: 1;
   padding: 0;
@@ -126,9 +222,33 @@
   min-width: 150px;
 }
 
-.custom-node-styles .node-gmail { border-left-color: var(--danger); }
-.custom-node-styles .node-notion { border-left-color: var(--text-primary); }
-.custom-node-styles .node-github { border-left-color: #24292e; }
+.custom-node-styles .node-gmail { 
+  border-left-color: #ea4335 !important; 
+  box-shadow: 0 4px 12px rgba(234, 67, 53, 0.15);
+}
+
+.custom-node-styles .node-notion { 
+  border-left-color: #37352f !important; 
+  background-color: #fbfbfb !important;
+  color: #37352f !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.custom-node-styles .node-github { 
+  border-left-color: #24292e !important; 
+  box-shadow: 0 4px 12px rgba(36, 41, 46, 0.15);
+}
+
+.custom-node-styles .node-gemini {
+  border-left-color: #8e75ff !important;
+  box-shadow: 0 4px 12px rgba(142, 117, 255, 0.15);
+}
+
+.custom-node-styles .react-flow__node:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease;
+}
 
 .custom-node-styles .react-flow__handle {
   width: 8px;

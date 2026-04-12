@@ -4,7 +4,7 @@ import httpx
 
 from app.adapters.base import ServiceAdapter
 from app.core.config import settings
-from app.core.exceptions import AdapterExecutionError, ConfigurationError
+from app.core.exceptions import AdapterExecutionError
 
 
 class GitHubAdapter(ServiceAdapter):
@@ -31,7 +31,7 @@ class GitHubAdapter(ServiceAdapter):
         raise AdapterExecutionError(f"Unsupported GitHub action '{action}'", 400)
 
     async def _listen_issue(self, repo: str, token: str) -> str:
-        issues = await self._request("GET", f"/repos/{repo}/issues", token, params={
+        issues = await self._request_with_public_fallback("GET", f"/repos/{repo}/issues", token, params={
             "state": "open",
             "sort": "created",
             "direction": "desc",
@@ -49,7 +49,7 @@ class GitHubAdapter(ServiceAdapter):
         return f"Latest Issue #{issue['number']}: {title}\n\n{body}".strip()
 
     async def _listen_commits(self, repo: str, token: str) -> str:
-        commits = await self._request("GET", f"/repos/{repo}/commits", token, params={
+        commits = await self._request_with_public_fallback("GET", f"/repos/{repo}/commits", token, params={
             "per_page": 5,
         })
         if not commits:
@@ -69,11 +69,22 @@ class GitHubAdapter(ServiceAdapter):
         body = str(inputs.get("body", "")).strip()
         if not title:
             raise AdapterExecutionError("GitHub create_issue requires inputs.title", 400)
-        created = await self._request("POST", f"/repos/{repo}/issues", token, json={
-            "title": title,
-            "body": body,
-        })
-        return f"Created GitHub issue #{created['number']}: {created['html_url']}"
+        try:
+            created = await self._request("POST", f"/repos/{repo}/issues", token, json={
+                "title": title,
+                "body": body,
+            })
+            return f"Created GitHub issue #{created['number']}: {created['html_url']}"
+        except AdapterExecutionError as exc:
+            detail = exc.message.lower()
+            if exc.status_code == 403 and "resource not accessible by personal access token" in detail:
+                fallback_body = body or title
+                fallback = await self._comment_on_latest_issue(repo, fallback_body, token)
+                return (
+                    "GitHub issue creation was blocked by token permissions. "
+                    f"Fallback applied successfully: {fallback}"
+                )
+            raise
 
     async def _comment(self, repo: str, inputs: Dict[str, Any], token: str) -> str:
         issue_number = inputs.get("issue_number")
@@ -90,14 +101,59 @@ class GitHubAdapter(ServiceAdapter):
         )
         return f"Comment posted: {comment['html_url']}"
 
+    async def _comment_on_latest_issue(self, repo: str, body: str, token: str) -> str:
+        if not body:
+            raise AdapterExecutionError("GitHub fallback comment requires non-empty body", 400)
+
+        issues = await self._request_with_public_fallback("GET", f"/repos/{repo}/issues", token, params={
+            "state": "open",
+            "sort": "created",
+            "direction": "desc",
+            "per_page": 10,
+        })
+        issue = next((item for item in issues if "pull_request" not in item), None)
+        if not issue:
+            raise AdapterExecutionError(
+                "GitHub token cannot create issues and no open issue exists for fallback commenting",
+                403,
+            )
+
+        comment = await self._request(
+            "POST",
+            f"/repos/{repo}/issues/{issue['number']}/comments",
+            token,
+            json={"body": body},
+        )
+        return f"commented on issue #{issue['number']}: {comment['html_url']}"
+
+    async def _request_with_public_fallback(self, method: str, path: str, token: str, **kwargs: Any) -> Any:
+        try:
+            return await self._request(method, path, token, **kwargs)
+        except AdapterExecutionError as exc:
+            detail = exc.message.lower()
+            if method.upper() == "GET" and exc.status_code in {401, 403}:
+                if any(marker in detail for marker in [
+                    "resource not accessible by personal access token",
+                    "bad credentials",
+                    "requires authentication",
+                    "forbidden",
+                ]):
+                    return await self._request(method, path, "", **kwargs)
+            raise
+
     async def _request(self, method: str, path: str, token: str, **kwargs: Any) -> Any:
         headers = {
-            "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         try:
-            async with httpx.AsyncClient(base_url=self.base_url, timeout=settings.MCP_REQUEST_TIMEOUT) as client:
+            async with httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=settings.MCP_REQUEST_TIMEOUT,
+                trust_env=False,
+            ) as client:
                 response = await client.request(method, path, headers=headers, **kwargs)
                 response.raise_for_status()
                 return response.json()
@@ -113,6 +169,4 @@ class GitHubAdapter(ServiceAdapter):
         if user_tokens:
             token = str(user_tokens.get("github", {}).get("access_token", "")).strip()
         token = token or settings.GITHUB_TOKEN
-        if not token:
-            raise ConfigurationError("GitHub token is not configured", 503)
         return token

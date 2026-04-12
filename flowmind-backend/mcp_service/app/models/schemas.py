@@ -28,11 +28,16 @@ class GenerateRequest(BaseModel):
     description: str
     services: List[str] = Field(default_factory=list)
     userId: str
+    previousDag: Optional[Dict[str, Any]] = None
+    repairContext: Optional[Dict[str, Any]] = None
+    previousPlan: Optional[str] = None
+    refinementPrompt: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):
     workflowId: str = Field(default_factory=lambda: f"wf-{uuid4()}")
     dag: DAGPayload
+    planText: str
 
 
 class SimulateRequest(BaseModel):

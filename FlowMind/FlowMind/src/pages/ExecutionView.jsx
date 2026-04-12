@@ -12,10 +12,17 @@ const ExecutionView = () => {
   const { execId, workflow } = location.state || {};
   const [selectedLog, setSelectedLog] = React.useState(null);
 
-  const { logs, nodeStates, status, approvalState } = useWebSocket(workflow?.id);
+  const { logs, nodeStates, status, approvalState, replannedDag } = useWebSocket(workflow?.id);
+
+  const activeWorkflowGraph = React.useMemo(() => {
+    if (replannedDag?.nodes && replannedDag?.edges) {
+      return toReactFlowGraph(replannedDag);
+    }
+    return workflow;
+  }, [replannedDag, workflow]);
 
   // Apply real-time styles to nodes based on WebSocket events
-  const liveNodes = workflow?.nodes.map(node => {
+  const liveNodes = activeWorkflowGraph?.nodes.map(node => {
     const nodeStatus = nodeStates[node.id];
     let className = `base-node node-${node.data.service}`;
     if (nodeStatus === 'step_started') className += ' live-pulse';
@@ -62,7 +69,7 @@ const ExecutionView = () => {
         <div className="card dag-card">
           <ReactFlow 
             nodes={liveNodes} 
-            edges={workflow.edges}
+            edges={activeWorkflowGraph?.edges || []}
             fitView
             className="real-time-flow"
           >
@@ -141,6 +148,29 @@ const ExecutionView = () => {
       )}
     </div>
   );
+};
+
+const toReactFlowGraph = (dag) => {
+  const nodes = (dag?.nodes || []).map((node, index) => ({
+    id: node.id,
+    type: 'default',
+    position: { x: 80 + index * 320, y: 240 },
+    data: {
+      label: node.label,
+      service: node.service,
+      action: node.action,
+    },
+  }));
+
+  const edges = (dag?.edges || []).map((edge, index) => ({
+    id: `repaired-edge-${index}-${edge.from}-${edge.to}`,
+    source: edge.from,
+    target: edge.to,
+    animated: true,
+    style: { strokeDasharray: '5 5' },
+  }));
+
+  return { nodes, edges };
 };
 
 export default ExecutionView;

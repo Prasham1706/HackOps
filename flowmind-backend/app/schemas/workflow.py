@@ -28,6 +28,12 @@ class DAGEdgeSchema(BaseModel):
 class GenerateWorkflowResponse(BaseModel):
     workflowId: str
     dag: Dict[str, Any]
+    planText: str
+
+
+class RefineWorkflowRequest(BaseModel):
+    workflowId: str
+    refinementPrompt: str
 
 
 class ConfigureWorkflowRequest(BaseModel):

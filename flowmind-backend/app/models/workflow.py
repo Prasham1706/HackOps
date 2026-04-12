@@ -53,9 +53,12 @@ class Workflow(Document):
     user_id: str
     description: str
     dag_json: Optional[Dict[str, Any]] = None
+    plan_text: Optional[str] = None
+    plan_history: List[Dict[str, Any]] = []
     status: WorkflowStatus = WorkflowStatus.PENDING
     simulation: Optional[Dict[str, Any]] = None
     hitl_decisions: List[Dict[str, Any]] = []
+    repair_history: List[Dict[str, Any]] = []
     created_at: datetime = datetime.utcnow()
     updated_at: datetime = datetime.utcnow()
 

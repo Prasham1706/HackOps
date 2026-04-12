@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ReactFlow, { Background, Controls, MiniMap } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Sparkles, Play, ShieldAlert, Cpu } from 'lucide-react';
-import { configureWorkflow, executeWorkflow, generateWorkflow, getIntegrations, simulateWorkflow } from '../api';
+import { Sparkles, Play, ShieldAlert, Cpu, Mic, Loader2, CheckCircle2 } from 'lucide-react';
+import { configureWorkflow, executeWorkflow, generateWorkflow, getIntegrations, refineWorkflow, simulateWorkflow } from '../api';
 import './WorkflowBuilder.css';
 
 const WorkflowBuilder = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -14,8 +15,18 @@ const WorkflowBuilder = () => {
   const [simulation, setSimulation] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [connectedServices, setConnectedServices] = useState([]);
+  const [integrationsLoaded, setIntegrationsLoaded] = useState(false);
   const [nodeInputs, setNodeInputs] = useState({});
   const [isPreparingExecution, setIsPreparingExecution] = useState(false);
+  const [speechSessionHandled, setSpeechSessionHandled] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState('');
+  const [speechPreview, setSpeechPreview] = useState('');
+  const [generateError, setGenerateError] = useState('');
+  const [planText, setPlanText] = useState('');
+  const [refinementPrompt, setRefinementPrompt] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+  const [planApproved, setPlanApproved] = useState(false);
 
   useEffect(() => {
     const loadIntegrations = async () => {
@@ -27,30 +38,131 @@ const WorkflowBuilder = () => {
         setConnectedServices(connected);
       } catch (error) {
         console.error('Failed to load integrations', error);
+      } finally {
+        setIntegrationsLoaded(true);
       }
     };
 
     loadIntegrations();
   }, []);
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+  const handleGenerate = async (promptOverride) => {
+    const promptText = typeof promptOverride === 'string'
+      ? promptOverride.trim()
+      : prompt.trim();
+    if (!promptText) return;
+    setGenerateError('');
     setIsGenerating(true);
     setSimulation(null); // Reset sim
     try {
-      const inferredServices = inferServicesFromPrompt(prompt, connectedServices);
+      const inferredServices = inferServicesFromPrompt(promptText, connectedServices);
       const data = await generateWorkflow({
-        description: prompt,
+        description: promptText,
         services: inferredServices,
       });
       const normalized = normalizeWorkflow(data);
       setWorkflow(normalized);
+      setPlanText(data.planText || '');
+      setPlanApproved(false);
+      setRefinementPrompt('');
       setNodeInputs(extractEditableInputs(normalized.dag));
     } catch (error) {
       console.error('Failed to generate workflow', error);
+      setGenerateError(error.response?.data?.detail || error.message || 'Failed to generate workflow.');
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  useEffect(() => {
+    const speechPrompt = location.state?.speechPrompt;
+    const autoGenerate = location.state?.autoGenerate;
+    const speechSessionId = location.state?.speechSessionId;
+
+    if (!integrationsLoaded || !speechPrompt || !speechSessionId || speechSessionHandled === speechSessionId) {
+      return;
+    }
+
+    setPrompt(speechPrompt);
+    setSpeechSessionHandled(speechSessionId);
+
+    if (autoGenerate) {
+      handleGenerate(speechPrompt);
+    }
+  }, [integrationsLoaded, location.state, speechSessionHandled]);
+
+  useEffect(() => {
+    return () => {
+      if (window.__flowmindRecognition) {
+        window.__flowmindRecognition.onresult = null;
+        window.__flowmindRecognition.onend = null;
+        window.__flowmindRecognition.onerror = null;
+        window.__flowmindRecognition.stop();
+        window.__flowmindRecognition = null;
+      }
+    };
+  }, []);
+
+  const handleSpeechPrompt = () => {
+    const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionApi) {
+      setSpeechError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isListening && window.__flowmindRecognition) {
+      window.__flowmindRecognition.stop();
+      return;
+    }
+
+    let finalTranscript = '';
+    setSpeechError('');
+    setSpeechPreview('');
+
+    const recognition = new SpeechRecognitionApi();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript || '';
+        if (result.isFinal) {
+          finalTranscript += `${transcript} `;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const combined = `${finalTranscript}${interimTranscript}`.trim();
+      setSpeechPreview(combined);
+      setPrompt(combined);
+    };
+
+    recognition.onerror = (event) => {
+      const message = event.error === 'not-allowed'
+        ? 'Microphone permission was denied.'
+        : `Speech recognition error: ${event.error}`;
+      setSpeechError(message);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      window.__flowmindRecognition = null;
+      const transcript = finalTranscript.trim() || speechPreview.trim();
+      if (transcript) {
+        setPrompt(transcript);
+      }
+    };
+
+    window.__flowmindRecognition = recognition;
+    setIsListening(true);
+    recognition.start();
   };
 
   const handleSimulate = async () => {
@@ -69,6 +181,10 @@ const WorkflowBuilder = () => {
   const handleExecute = async () => {
     if (!workflow) return;
     try {
+      if (!planApproved) {
+        alert('Please approve the workflow plan before execution.');
+        return;
+      }
       if (hasMissingRequiredInputs(workflow.dag, nodeInputs)) {
         alert('Please fill in the required workflow inputs before executing.');
         return;
@@ -82,6 +198,29 @@ const WorkflowBuilder = () => {
       console.error(e);
     } finally {
       setIsPreparingExecution(false);
+    }
+  };
+
+  const handleRefinePlan = async () => {
+    if (!workflow || !refinementPrompt.trim()) return;
+    const nextPrompt = refinementPrompt.trim();
+    setGenerateError('');
+    setIsRefining(true);
+    try {
+      const data = await refineWorkflow(workflow.id, nextPrompt);
+      const normalized = normalizeWorkflow(data);
+      setWorkflow(normalized);
+      setPlanText(data.planText || '');
+      setPlanApproved(false);
+      setNodeInputs(extractEditableInputs(normalized.dag));
+      setSimulation(null);
+      setPrompt(nextPrompt);
+      setRefinementPrompt('');
+    } catch (error) {
+      console.error('Failed to refine workflow', error);
+      setGenerateError(error.response?.data?.detail || error.message || 'Failed to refine workflow.');
+    } finally {
+      setIsRefining(false);
     }
   };
 
@@ -102,7 +241,7 @@ const WorkflowBuilder = () => {
           <h1 className="page-title">Workflow Builder</h1>
           <p className="page-subtitle">Translate intent into automated execution</p>
         </div>
-        {workflow && (
+        {workflow && planApproved && (
             <button className="btn btn-primary" onClick={handleExecute} disabled={isPreparingExecution}>
               <Play size={16} /> {isPreparingExecution ? 'Preparing...' : 'Execute Workflow'}
             </button>
@@ -113,23 +252,74 @@ const WorkflowBuilder = () => {
         <div className="builder-sidebar">
           {/* Section A: Natural Language Input */}
           <div className="card input-card">
-            <h3>Natural Language Input</h3>
+            <div className="prompt-card-header">
+              <h3>Natural Language Input</h3>
+              <button
+                type="button"
+                className={`btn btn-secondary prompt-mic-btn ${isListening ? 'listening' : ''}`}
+                onClick={handleSpeechPrompt}
+              >
+                {isListening ? <Loader2 size={16} className="spin-icon" /> : <Mic size={16} />}
+                {isListening ? 'Listening...' : 'Speak'}
+              </button>
+            </div>
             <textarea 
               className="input prompt-area" 
               placeholder="E.g., Whenever a high-priority email arrives, summarize it using AI and save it to a Notion database..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
             />
-            <button className="btn btn-secondary w-100" onClick={handleGenerate} disabled={isGenerating || !prompt.trim()}>
+            {(speechPreview || speechError) && (
+              <div className="speech-inline-status">
+                {speechPreview && <p className="speech-inline-preview">{speechPreview}</p>}
+                {speechError && <p className="speech-inline-error">{speechError}</p>}
+              </div>
+            )}
+            {generateError && (
+              <div className="generate-error-banner">{generateError}</div>
+            )}
+            <button className="btn btn-secondary w-100" onClick={() => handleGenerate()} disabled={isGenerating || !prompt.trim()}>
               {isGenerating ? 'Generating...' : <><Sparkles size={16} /> Generate Workflow</>}
             </button>
           </div>
+
+          {workflow && (
+            <div className="card input-card">
+              <div className="plan-header-row">
+                <h3>Execution Plan</h3>
+                <button
+                  type="button"
+                  className={`btn ${planApproved ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                  onClick={() => setPlanApproved((prev) => !prev)}
+                >
+                  <CheckCircle2 size={14} /> {planApproved ? 'Approved' : 'Approve Plan'}
+                </button>
+              </div>
+              <pre className="plan-text-block">{planText || 'Plan will appear here after generation.'}</pre>
+              <textarea
+                className="input refine-area"
+                placeholder="Improve this workflow plan. Example: add Gemini summarization before Notion, or use GitHub read instead of write."
+                value={refinementPrompt}
+                onChange={(e) => setRefinementPrompt(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary w-100"
+                onClick={handleRefinePlan}
+                disabled={isRefining || !refinementPrompt.trim()}
+              >
+                {isRefining ? 'Updating Plan...' : 'Improve Plan & DAG'}
+              </button>
+              {!planApproved && (
+                <p className="plan-hint">Approve the plan after reviewing it to enable workflow execution.</p>
+              )}
+            </div>
+          )}
 
           {workflow && hasEditableInputs(workflow.dag) && (
             <div className="card input-card">
               <h3>Workflow Inputs</h3>
               {(workflow.dag?.nodes || []).map((node) => {
-                const editableFields = getEditableFields(node);
+                const editableFields = getEditableFields(node, workflow.dag);
                 if (!editableFields.length) return null;
 
                 return (
@@ -238,6 +428,7 @@ const normalizeWorkflow = (response) => {
       },
       sourcePosition: 'right',
       targetPosition: 'left',
+      className: `node-${node.service}`,
       style: {
         borderRadius: 14,
         padding: 12,

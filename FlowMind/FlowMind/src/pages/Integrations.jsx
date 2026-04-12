@@ -1,26 +1,60 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Settings, RefreshCw, Power } from 'lucide-react';
-import { getIntegrations } from '../api';
+import { connectIntegration, disconnectIntegration, getIntegrations } from '../api';
 import './Integrations.css';
 
 const Integrations = () => {
+  const location = useLocation();
   const [integrations, setIntegrations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeService, setActiveService] = useState(null);
+
+  const loadIntegrations = async () => {
+    const data = await getIntegrations();
+    setIntegrations(data);
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    getIntegrations().then(data => {
-      setIntegrations(data);
+    loadIntegrations().catch((error) => {
+      console.error('Failed to load integrations', error);
       setIsLoading(false);
     });
   }, []);
 
-  const toggleConnection = (id) => {
-    setIntegrations(integrations.map(int => {
-      if (int.id === id) {
-        return { ...int, status: int.status === 'connected' ? 'disconnected' : 'connected' };
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (
+      params.get('gmail') === 'connected' ||
+      params.get('github') === 'connected' ||
+      params.get('notion') === 'connected'
+    ) {
+      loadIntegrations().catch(console.error);
+    }
+  }, [location.search]);
+
+  const toggleConnection = async (integration) => {
+    try {
+      setActiveService(integration.id);
+      if (integration.status === 'connected') {
+        await disconnectIntegration(integration.id);
+        await loadIntegrations();
+        return;
       }
-      return int;
-    }));
+
+      const result = await connectIntegration(integration.id);
+      if (result.authUrl) {
+        window.location.href = result.authUrl;
+        return;
+      }
+
+      await loadIntegrations();
+    } catch (error) {
+      console.error('Failed to toggle integration', error);
+    } finally {
+      setActiveService(null);
+    }
   };
 
   return (
@@ -50,11 +84,11 @@ const Integrations = () => {
 
               <div className="int-actions">
                 {integration.status === 'connected' ? (
-                  <button className="btn btn-secondary w-100" onClick={() => toggleConnection(integration.id)}>
+                  <button className="btn btn-secondary w-100" onClick={() => toggleConnection(integration)} disabled={activeService === integration.id}>
                     <Power size={16} /> Disconnect
                   </button>
                 ) : (
-                  <button className="btn btn-primary w-100" onClick={() => toggleConnection(integration.id)}>
+                  <button className="btn btn-primary w-100" onClick={() => toggleConnection(integration)} disabled={activeService === integration.id}>
                     <RefreshCw size={16} /> Connect
                   </button>
                 )}

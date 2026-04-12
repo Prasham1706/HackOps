@@ -9,9 +9,18 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_LOGIN_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GITHUB_OAUTH_CLIENT_ID: str = ""
+    GITHUB_OAUTH_CLIENT_SECRET: str = ""
+    GITHUB_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/integrations/github/callback"
+    NOTION_OAUTH_CLIENT_ID: str = ""
+    NOTION_OAUTH_CLIENT_SECRET: str = ""
+    NOTION_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/integrations/notion/callback"
     MCP_LAYER_URL: str = "http://localhost:9000"
     MCP_DEV_MOCK: bool = True
     FRONTEND_URL: str = "http://localhost:5173"
+    GMAIL_OAUTH_REDIRECT_URI: str = "http://localhost:8000/api/integrations/gmail/callback"
 
     class Config:
         env_file = ".env"

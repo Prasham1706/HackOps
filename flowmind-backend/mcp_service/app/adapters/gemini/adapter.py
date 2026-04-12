@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from app.adapters.base import ServiceAdapter
-from app.adapters.gemini.prompts import WORKFLOW_PLANNER_PROMPT
+from app.adapters.gemini.prompts import WORKFLOW_PLANNER_PROMPT, WORKFLOW_PLAN_TEXT_PROMPT
 from app.core.config import settings
 from app.core.exceptions import AdapterExecutionError
 
@@ -52,7 +52,15 @@ class GeminiAdapter(ServiceAdapter):
         )
         return await self._generate_text(prompt, fallback=fallback)
 
-    async def plan_workflow(self, description: str, services: List[str]) -> Optional[Dict[str, Any]]:
+    async def plan_workflow(
+        self,
+        description: str,
+        services: List[str],
+        previous_dag: Optional[Dict[str, Any]] = None,
+        repair_context: Optional[Dict[str, Any]] = None,
+        previous_plan: Optional[str] = None,
+        refinement_prompt: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         if not settings.GEMINI_API_KEY:
             return None
 
@@ -61,6 +69,23 @@ class GeminiAdapter(ServiceAdapter):
             f"Selected services: {services or []}\n"
             f"User request: {description}\n"
         )
+        if previous_dag:
+            prompt += (
+                "\nPrevious DAG that failed during execution:\n"
+                f"{json.dumps(previous_dag, indent=2)}\n"
+            )
+        if previous_plan:
+            prompt += f"\nPrevious workflow plan:\n{previous_plan}\n"
+        if refinement_prompt:
+            prompt += f"\nUser refinement request:\n{refinement_prompt}\n"
+        if repair_context:
+            prompt += (
+                "\nExecution failure context:\n"
+                f"{json.dumps(repair_context, indent=2)}\n"
+                "\nReturn a repaired DAG that still fulfills the original user request, "
+                "but also addresses the failure root cause. Preserve useful working steps, "
+                "change or add steps only where needed, and return JSON only.\n"
+            )
         try:
             text = await self._generate_text(prompt, fallback="", require_api=True)
         except AdapterExecutionError:
@@ -69,6 +94,25 @@ class GeminiAdapter(ServiceAdapter):
             return self._extract_json_object(text)
         except json.JSONDecodeError:
             return None
+
+    async def create_workflow_plan(
+        self,
+        description: str,
+        dag: Dict[str, Any],
+        previous_plan: Optional[str] = None,
+        refinement_prompt: Optional[str] = None,
+    ) -> str:
+        fallback = self._fallback_plan_text(description, dag, refinement_prompt)
+        prompt = (
+            f"{WORKFLOW_PLAN_TEXT_PROMPT}\n\n"
+            f"User request: {description}\n"
+            f"DAG JSON:\n{json.dumps(dag, indent=2)}\n"
+        )
+        if previous_plan:
+            prompt += f"\nPrevious plan:\n{previous_plan}\n"
+        if refinement_prompt:
+            prompt += f"\nUser refinement request:\n{refinement_prompt}\n"
+        return await self._generate_text(prompt, fallback=fallback)
 
     async def _generate_text(self, prompt: str, fallback: str, require_api: bool = False) -> str:
         if not settings.GEMINI_API_KEY:
@@ -114,3 +158,23 @@ class GeminiAdapter(ServiceAdapter):
         if start == -1 or end == -1 or end < start:
             raise json.JSONDecodeError("No JSON object found", raw_text, 0)
         return json.loads(raw_text[start : end + 1])
+
+    @staticmethod
+    def _fallback_plan_text(description: str, dag: Dict[str, Any], refinement_prompt: Optional[str] = None) -> str:
+        nodes = dag.get("nodes", [])
+        lines = [
+            "Goal:",
+            description.strip() or "Execute the requested workflow.",
+            "",
+            "Execution Plan:",
+        ]
+        for index, node in enumerate(nodes, start=1):
+            lines.append(f"{index}. {node.get('label', node.get('service', 'Step'))}")
+        lines.extend([
+            "",
+            "Notes:",
+            "- Review the generated DAG before execution.",
+        ])
+        if refinement_prompt:
+            lines.append(f"- Refinement applied: {refinement_prompt.strip()}")
+        return "\n".join(lines)

@@ -13,6 +13,7 @@ from app.schemas.workflow import (
     ConfigureWorkflowRequest,
     ExecuteRequest,
     ExecuteResponse,
+    RefineWorkflowRequest,
     GenerateWorkflowRequest,
     GenerateWorkflowResponse,
     SimulateRequest,
@@ -43,11 +44,70 @@ async def generate_workflow(
         user_id=str(current_user.id),
         description=body.description,
         dag_json=dag,
+        plan_text=result.get("planText", ""),
+        plan_history=[{
+            "type": "initial",
+            "prompt": body.description,
+            "planText": result.get("planText", ""),
+            "dag": dag,
+            "timestamp": datetime.utcnow().isoformat(),
+        }],
         status=WorkflowStatus.PENDING,
     )
     await workflow.insert()
 
-    return GenerateWorkflowResponse(workflowId=str(workflow.id), dag=dag)
+    return GenerateWorkflowResponse(
+        workflowId=str(workflow.id),
+        dag=dag,
+        planText=result.get("planText", ""),
+    )
+
+
+@router.post("/workflow/refine", response_model=GenerateWorkflowResponse)
+async def refine_workflow(
+    body: RefineWorkflowRequest,
+    current_user: User = Depends(get_current_user),
+):
+    workflow = await Workflow.get(body.workflowId)
+    if not workflow or workflow.user_id != str(current_user.id):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if not workflow.dag_json:
+        raise HTTPException(status_code=400, detail="No DAG generated yet")
+    if not body.refinementPrompt.strip():
+        raise HTTPException(status_code=400, detail="Refinement prompt is required")
+
+    result = await mcp_client.generate_dag(
+        description=workflow.description,
+        services=[],
+        user_id=str(current_user.id),
+        previous_dag=workflow.dag_json,
+        previous_plan=workflow.plan_text,
+        refinement_prompt=body.refinementPrompt.strip(),
+    )
+    dag = result.get("dag", {})
+    plan_text = result.get("planText", "")
+    plan_history = list(workflow.plan_history or [])
+    plan_history.append({
+        "type": "refinement",
+        "prompt": body.refinementPrompt.strip(),
+        "planText": plan_text,
+        "dag": dag,
+        "timestamp": datetime.utcnow().isoformat(),
+    })
+
+    await workflow.set({
+        "dag_json": dag,
+        "plan_text": plan_text,
+        "plan_history": plan_history,
+        "status": WorkflowStatus.PENDING,
+        "updated_at": datetime.utcnow(),
+    })
+
+    return GenerateWorkflowResponse(
+        workflowId=str(workflow.id),
+        dag=dag,
+        planText=plan_text,
+    )
 
 
 # ─── Simulate ────────────────────────────────────────────────────
@@ -171,6 +231,8 @@ async def get_workflow(
         "id": str(workflow.id),
         "description": workflow.description,
         "dag": workflow.dag_json,
+        "planText": workflow.plan_text,
+        "planHistory": workflow.plan_history,
         "status": workflow.status,
         "simulation": workflow.simulation,
         "hitl_decisions": workflow.hitl_decisions,

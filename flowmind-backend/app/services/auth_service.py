@@ -58,22 +58,29 @@ def verify_google_token(google_id_token: str) -> Optional[dict]:
     4. Add http://localhost:5173 to Authorized JavaScript Origins
     5. Copy the Client ID and paste into GOOGLE_CLIENT_ID in .env
     """
-    if not settings.GOOGLE_CLIENT_ID:
-        logger.error("GOOGLE_CLIENT_ID not configured in .env")
+    client_ids = [
+        client_id
+        for client_id in [settings.GOOGLE_LOGIN_CLIENT_ID, settings.GOOGLE_CLIENT_ID]
+        if client_id
+    ]
+    if not client_ids:
+        logger.error("No Google client ID configured in .env")
         return None
 
-    try:
-        idinfo = id_token.verify_oauth2_token(
-            google_id_token,
-            google_requests.Request(),
-            settings.GOOGLE_CLIENT_ID,
-        )
-        return {
-            "google_id": idinfo["sub"],
-            "email": idinfo["email"],
-            "name": idinfo.get("name", ""),
-            "picture": idinfo.get("picture", ""),
-        }
-    except ValueError as e:
-        logger.warning(f"Google token verification failed: {e}")
-        return None
+    for audience in client_ids:
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                google_id_token,
+                google_requests.Request(),
+                audience,
+            )
+            return {
+                "google_id": idinfo["sub"],
+                "email": idinfo["email"],
+                "name": idinfo.get("name", ""),
+                "picture": idinfo.get("picture", ""),
+            }
+        except ValueError as exc:
+            logger.warning(f"Google token verification failed for audience {audience}: {exc}")
+
+    return None

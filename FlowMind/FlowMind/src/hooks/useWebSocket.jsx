@@ -16,6 +16,7 @@ export const useWebSocket = (workflowId) => {
   const [nodeStates, setNodeStates] = useState({});
   const [status, setStatus] = useState('idle');
   const [approvalState, setApprovalState] = useState(null);
+  const [replannedDag, setReplannedDag] = useState(null);
 
   const wsRef = useRef(null);
   const retryCountRef = useRef(0);
@@ -69,6 +70,16 @@ export const useWebSocket = (workflowId) => {
             isFinalRef.current = true;
             setStatus('failed');
             setApprovalState(null);
+          }
+
+          if (payload.type === 'workflow_repairing' || payload.type === 'workflow_replanned') {
+            setStatus('running');
+            setApprovalState(null);
+          }
+
+          if (payload.type === 'workflow_replanned' && payload.dag) {
+            setReplannedDag(payload.dag);
+            setNodeStates({});
           }
 
           if (payload.type === 'step_failed') {
@@ -135,7 +146,7 @@ export const useWebSocket = (workflowId) => {
     };
   }, [socketUrl]);
 
-  return { logs, nodeStates, status, approvalState };
+  return { logs, nodeStates, status, approvalState, replannedDag };
 };
 
 const mapEventToLog = (payload) => {
@@ -148,6 +159,13 @@ const mapEventToLog = (payload) => {
     self_healing: `${payload.nodeId} retrying with ${payload.strategy || 'self-healing'}`,
     runtime_block: `${payload.nodeId} blocked: ${payload.reason}`,
     parallel_cleared: `Parallel group cleared: ${(payload.group || []).join(', ')}`,
+    workflow_repairing: payload.reason
+      ? `Replanning workflow after ${payload.failedNodeId} failed: ${payload.reason}`
+      : `Replanning workflow after ${payload.failedNodeId} failed`,
+    workflow_replanned: `Workflow DAG regenerated successfully (attempt ${payload.attempt})`,
+    workflow_repair_failed: payload.reason
+      ? `Workflow replanning failed: ${payload.reason}`
+      : 'Workflow replanning failed',
     workflow_complete: 'Workflow execution finished successfully',
     workflow_failed: 'Workflow execution failed',
   };
